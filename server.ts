@@ -336,16 +336,36 @@ async function startServer() {
 
       console.log(`Starting analysis for type: ${type}. Sending requests to Gemini...`);
 
-      const response = await client.models.generateContent({
-        model: "gemini-3.5-flash",
-        contents: contentsInput,
-        config: {
-          systemInstruction,
-          responseMimeType: "application/json",
-          responseSchema: analysisSchema,
-          temperature: 0.1, // Low temperature for high objectivity & precision
-        },
-      });
+      let response = null;
+      let lastError = null;
+      const modelsToTry = ["gemini-2.5-flash", "gemini-3.5-flash"];
+
+      for (const modelName of modelsToTry) {
+        try {
+          console.log(`Attempting analysis with model: ${modelName}`);
+          response = await client.models.generateContent({
+            model: modelName,
+            contents: contentsInput,
+            config: {
+              systemInstruction,
+              responseMimeType: "application/json",
+              responseSchema: analysisSchema,
+              temperature: 0.1, // Low temperature for high objectivity & precision
+            },
+          });
+          console.log(`Analysis successfully completed with model: ${modelName}`);
+          break; // Break loop on success
+        } catch (err: any) {
+          console.warn(`Model ${modelName} failed or was unavailable:`, err.message || err);
+          lastError = err;
+        }
+      }
+
+      if (!response) {
+        throw new Error(
+          `Todos los modelos de análisis de IA están experimentando alta demanda en este momento. Por favor, reintente en unos instantes. (Detalle: ${lastError?.message || lastError})`
+        );
+      }
 
       const responseText = response.text;
       if (!responseText) {
