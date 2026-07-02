@@ -1,0 +1,6 @@
+{
+  "name": "Analizador Periodístico de Entrevistas",
+  "description": "Transcribe y analiza audios o textos de entrevistas periodísticas identificando puntos clave, citas relevantes y comentarios políticos.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
