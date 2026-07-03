@@ -53,7 +53,7 @@ export interface AnalysisResult {
 export interface JournalHistoryItem {
   id: string;
   title: string;
-  type: "audio" | "text";
+  type: "audio" | "text" | "audio_url";
   fileName?: string;
   fileSize?: string;
   pastedTextSnippet?: string;

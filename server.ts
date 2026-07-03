@@ -298,16 +298,79 @@ async function startServer() {
     try {
       const { type, content, fileBase64, mimeType, filename } = req.body;
 
-      if (!type || (type === "text" && !content) || (type === "audio" && !fileBase64)) {
+      if (!type || (type === "text" && !content) || (type === "audio" && !fileBase64) || (type === "audio_url" && !content)) {
         res.status(400).json({ error: "Faltan parámetros requeridos: tipo o contenido inválidos." });
         return;
       }
 
       const client = getGeminiClient();
       let contentsInput: any[] = [];
+      let resolvedBase64 = fileBase64;
+      let resolvedMime = mimeType || "audio/mp3";
+      let isAudioType = type === "audio";
 
-      if (type === "audio") {
-        let resolvedMime = mimeType || "audio/mp3";
+      // Auto-detect if input is a URL (either from 'audio_url' or a URL pasted in 'text')
+      let isUrl = type === "audio_url";
+      let urlToFetch = "";
+      if (type === "text" && content) {
+        const trimmed = content.trim();
+        if (/^https?:\/\/[^\s]+$/i.test(trimmed)) {
+          isUrl = true;
+          urlToFetch = trimmed;
+        }
+      } else if (type === "audio_url" && content) {
+        urlToFetch = content.trim();
+      }
+
+      if (isUrl) {
+        console.log(`URL detected: ${urlToFetch}. Attempting server-side fetch...`);
+        try {
+          const fetchResponse = await fetch(urlToFetch, {
+            headers: {
+              "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+            },
+          });
+
+          if (!fetchResponse.ok) {
+            console.error(`Fetch failed for URL ${urlToFetch} with status ${fetchResponse.status}`);
+            res.status(fetchResponse.status === 404 ? 404 : 400).json({
+              error: fetchResponse.status === 404
+                ? `La URL del audio provista no existe (Error 404). Por favor, verifique que la dirección del audio sea correcta y pública.`
+                : `Error al descargar el archivo desde la URL (Código HTTP ${fetchResponse.status}: ${fetchResponse.statusText}). Asegúrese de que el enlace sea accesible.`
+            });
+            return;
+          }
+
+          const arrayBuffer = await fetchResponse.arrayBuffer();
+          const buffer = Buffer.from(arrayBuffer);
+          resolvedBase64 = buffer.toString("base64");
+          isAudioType = true;
+
+          const contentType = fetchResponse.headers.get("content-type") || "";
+          console.log(`Successfully fetched URL. Content-Type: ${contentType}, Size: ${buffer.length} bytes`);
+
+          if (contentType && contentType.includes("audio")) {
+            resolvedMime = contentType;
+          } else {
+            const urlLower = urlToFetch.toLowerCase();
+            if (urlLower.endsWith(".mp3")) resolvedMime = "audio/mp3";
+            else if (urlLower.endsWith(".wav")) resolvedMime = "audio/wav";
+            else if (urlLower.endsWith(".m4a")) resolvedMime = "audio/m4a";
+            else if (urlLower.endsWith(".ogg")) resolvedMime = "audio/ogg";
+            else if (urlLower.endsWith(".aac")) resolvedMime = "audio/aac";
+            else if (urlLower.endsWith(".flac")) resolvedMime = "audio/flac";
+            else resolvedMime = "audio/mp3";
+          }
+        } catch (fetchErr: any) {
+          console.error(`Failed fetching audio URL ${urlToFetch}:`, fetchErr);
+          res.status(400).json({
+            error: `No se pudo conectar o descargar el archivo desde la URL de audio especificada. Detalles: ${fetchErr.message || fetchErr}`
+          });
+          return;
+        }
+      }
+
+      if (isAudioType && resolvedBase64) {
         // Normalize common variations of mp3/mpeg MIME types for ultimate Gemini compatibility
         if (
           resolvedMime.includes("mp3") ||
@@ -321,7 +384,7 @@ async function startServer() {
         const audioPart = {
           inlineData: {
             mimeType: resolvedMime,
-            data: fileBase64,
+            data: resolvedBase64,
           },
         };
         contentsInput = [
@@ -334,7 +397,7 @@ async function startServer() {
         ];
       }
 
-      console.log(`Starting analysis for type: ${type}. Sending requests to Gemini...`);
+      console.log(`Starting analysis for type: ${type} (Resolved as Audio: ${isAudioType}). Sending requests to Gemini...`);
 
       let response = null;
       let lastError = null;

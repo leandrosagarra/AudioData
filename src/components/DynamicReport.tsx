@@ -29,7 +29,7 @@ import {
 interface DynamicReportProps {
   title: string;
   timestamp: string;
-  type: "audio" | "text";
+  type: "audio" | "text" | "audio_url";
   result: AnalysisResult;
 }
 
@@ -57,7 +57,7 @@ export default function DynamicReport({ title, timestamp, type, result }: Dynami
     try {
       let mdReport = `# AUDITORÍA DE ENTREVISTA: ${title}\n`;
       mdReport += `Fecha: ${dateStr}\n`;
-      mdReport += `Tipo: ${type === "audio" ? "Audio Integrado" : "Texto Pegado"}\n\n`;
+      mdReport += `Tipo: ${type === "audio" ? "Audio Integrado" : type === "audio_url" ? "Audio por URL" : "Texto Pegado"}\n\n`;
       mdReport += `## RESUMEN GENERAL\n${result.summary}\n\n`;
       
       mdReport += `## PUNTOS CLAVE\n`;
@@ -148,7 +148,7 @@ export default function DynamicReport({ title, timestamp, type, result }: Dynami
     try {
       let mdReport = `# AUDITORÍA DE ENTREVISTA: ${title}\n`;
       mdReport += `Fecha: ${dateStr}\n`;
-      mdReport += `Tipo: ${type === "audio" ? "Audio Integrado" : "Texto Pegado"}\n\n`;
+      mdReport += `Tipo: ${type === "audio" ? "Audio Integrado" : type === "audio_url" ? "Audio por URL" : "Texto Pegado"}\n\n`;
       mdReport += `## RESUMEN GENERAL\n${result.summary}\n\n`;
       
       mdReport += `## PUNTOS CLAVE\n`;
@@ -227,7 +227,7 @@ export default function DynamicReport({ title, timestamp, type, result }: Dynami
           <h1>AUDITORÍA DE ENTREVISTA: ${title}</h1>
           <div class="meta">
             <p><strong>Fecha de consolidación:</strong> ${dateStr}</p>
-            <p><strong>Tipo de material:</strong> ${type === "audio" ? "Audio Integrado" : "Texto Pegado"}</p>
+            <p><strong>Tipo de material:</strong> ${type === "audio" ? "Audio Integrado" : type === "audio_url" ? "Audio por URL" : "Texto Pegado"}</p>
           </div>
 
           <h2>RESUMEN GENERAL</h2>
@@ -367,10 +367,10 @@ export default function DynamicReport({ title, timestamp, type, result }: Dynami
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div className="space-y-2">
             <div className="flex items-center gap-2">
-              {type === "audio" ? (
+              {type === "audio" || type === "audio_url" ? (
                 <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-teal-50 text-teal-800 border border-teal-100">
                   <Mic className="w-3 h-3" />
-                  Evidencia de Audio
+                  {type === "audio_url" ? "Audio por URL" : "Evidencia de Audio"}
                 </span>
               ) : (
                 <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-blue-50 text-blue-800 border border-blue-100">

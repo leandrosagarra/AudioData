@@ -44,7 +44,7 @@ export default function App() {
 
   // Process manual or file analysis request via the Node backend /api/analyze endpoint
   const handleAnalyze = async (payload: {
-    type: "audio" | "text";
+    type: "audio" | "text" | "audio_url";
     content?: string;
     fileBase64?: string;
     mimeType?: string;

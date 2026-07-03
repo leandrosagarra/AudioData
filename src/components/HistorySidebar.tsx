@@ -53,7 +53,7 @@ export default function HistorySidebar({ items, selectedId, onSelect, onDelete }
               >
                 <div className="p-3.5 pr-10">
                   <div className="flex items-center gap-2 mb-1">
-                    {item.type === "audio" ? (
+                    {item.type === "audio" || item.type === "audio_url" ? (
                       <span className="w-5 h-5 rounded-md bg-teal-100 text-teal-700 flex items-center justify-center text-[10px]">
                         <Mic className="w-3 h-3" />
                       </span>
@@ -69,9 +69,9 @@ export default function HistorySidebar({ items, selectedId, onSelect, onDelete }
                     {item.title}
                   </h3>
 
-                  {item.type === "audio" && item.fileName && (
+                  {(item.type === "audio" || item.type === "audio_url") && item.fileName && (
                     <span className="text-[9px] text-slate-400 block mt-1 truncate">
-                      Archivo: {item.fileName} {item.fileSize ? `(${item.fileSize})` : ""}
+                      {item.type === "audio_url" ? "Enlace" : "Archivo"}: {item.fileName} {item.fileSize ? `(${item.fileSize})` : ""}
                     </span>
                   )}
                   {item.type === "text" && item.pastedTextSnippet && (

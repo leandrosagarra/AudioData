@@ -4,11 +4,11 @@
  */
 
 import React, { useState, useRef } from "react";
-import { UploadCloud, FileText, Mic, AlertCircle, Sparkles } from "lucide-react";
+import { UploadCloud, FileText, Mic, AlertCircle, Sparkles, Link } from "lucide-react";
 
 interface AudioTextFormProps {
   onAnalyze: (payload: {
-    type: "audio" | "text";
+    type: "audio" | "text" | "audio_url";
     content?: string;
     fileBase64?: string;
     mimeType?: string;
@@ -19,9 +19,10 @@ interface AudioTextFormProps {
 }
 
 export default function AudioTextForm({ onAnalyze, isLoading }: AudioTextFormProps) {
-  const [activeTab, setActiveTab] = useState<"audio" | "text">("audio");
+  const [activeTab, setActiveTab] = useState<"audio" | "url" | "text">("audio");
   const [title, setTitle] = useState("");
   const [textInput, setTextInput] = useState("");
+  const [audioUrl, setAudioUrl] = useState("");
   const [audioFile, setAudioFile] = useState<File | null>(null);
   const [dragActive, setDragActive] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -66,13 +67,33 @@ export default function AudioTextForm({ onAnalyze, isLoading }: AudioTextFormPro
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    const finalTitle = title.trim() || (activeTab === "audio" ? "Análisis de Audio" : "Análisis de Texto");
+    const finalTitle = title.trim() || (activeTab === "audio" ? "Análisis de Audio" : activeTab === "url" ? "Audio por URL" : "Análisis de Texto");
 
     if (activeTab === "text") {
       if (!textInput.trim()) return;
       onAnalyze({
         type: "text",
         content: textInput,
+        title: finalTitle,
+      });
+    } else if (activeTab === "url") {
+      if (!audioUrl.trim()) return;
+      
+      // Determine file name from URL if possible
+      let filename = "audio_remoto.mp3";
+      try {
+        const parsed = new URL(audioUrl);
+        const pathname = parsed.pathname;
+        const lastPart = pathname.substring(pathname.lastIndexOf('/') + 1);
+        if (lastPart && lastPart.includes('.')) {
+          filename = lastPart;
+        }
+      } catch (e) {}
+
+      onAnalyze({
+        type: "audio_url",
+        content: audioUrl.trim(),
+        filename: filename,
         title: finalTitle,
       });
     } else {
@@ -116,22 +137,40 @@ export default function AudioTextForm({ onAnalyze, isLoading }: AudioTextFormPro
   return (
     <div className="bg-white border border-[#E2E8F0] rounded-xl shadow-sm overflow-hidden" id="analysis-form-card">
       {/* Header and Toggle Navigation */}
-      <div className="flex border-b border-[#E2E8F0] bg-slate-50/50">
+      <div className="flex border-b border-[#E2E8F0] bg-slate-50/50 flex-wrap sm:flex-nowrap">
         <button
           id="btn-tab-audio"
           type="button"
           onClick={() => {
             setActiveTab("audio");
             setAudioFile(null);
+            setAudioUrl("");
           }}
-          className={`flex-1 py-4 px-6 text-sm font-medium tracking-tight border-b-2 flex items-center justify-center gap-2 transition-all ${
+          className={`flex-1 py-3 px-4 text-xs font-semibold uppercase tracking-wider border-b-2 flex items-center justify-center gap-1.5 transition-all ${
             activeTab === "audio"
               ? "border-teal-600 text-teal-800 bg-white"
               : "border-transparent text-slate-500 hover:text-slate-800 hover:bg-slate-50"
           }`}
         >
-          <Mic className="w-4 h-4" />
-          Análisis de Audio
+          <Mic className="w-3.5 h-3.5" />
+          Subir Archivo
+        </button>
+        <button
+          id="btn-tab-url"
+          type="button"
+          onClick={() => {
+            setActiveTab("url");
+            setAudioFile(null);
+            setTextInput("");
+          }}
+          className={`flex-1 py-3 px-4 text-xs font-semibold uppercase tracking-wider border-b-2 flex items-center justify-center gap-1.5 transition-all ${
+            activeTab === "url"
+              ? "border-teal-600 text-teal-800 bg-white"
+              : "border-transparent text-slate-500 hover:text-slate-800 hover:bg-slate-50"
+          }`}
+        >
+          <Link className="w-3.5 h-3.5" />
+          Audio por URL
         </button>
         <button
           id="btn-tab-text"
@@ -139,15 +178,16 @@ export default function AudioTextForm({ onAnalyze, isLoading }: AudioTextFormPro
           onClick={() => {
             setActiveTab("text");
             setTextInput("");
+            setAudioUrl("");
           }}
-          className={`flex-1 py-4 px-6 text-sm font-medium tracking-tight border-b-2 flex items-center justify-center gap-2 transition-all ${
+          className={`flex-1 py-3 px-4 text-xs font-semibold uppercase tracking-wider border-b-2 flex items-center justify-center gap-1.5 transition-all ${
             activeTab === "text"
               ? "border-teal-600 text-teal-800 bg-white"
               : "border-transparent text-slate-500 hover:text-slate-800 hover:bg-slate-50"
           }`}
         >
-          <FileText className="w-4 h-4" />
-          Pegar Transp./Texto
+          <FileText className="w-3.5 h-3.5" />
+          Pegar Texto
         </button>
       </div>
 
@@ -232,6 +272,44 @@ export default function AudioTextForm({ onAnalyze, isLoading }: AudioTextFormPro
           </div>
         )}
 
+        {/* Tab Panel: Audio URL */}
+        {activeTab === "url" && (
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <label htmlFor="audio-url-input" className="text-xs font-semibold uppercase tracking-wider text-slate-500 block">
+                Dirección web del Audio (URL)
+              </label>
+              <input
+                id="audio-url-input"
+                type="url"
+                required
+                placeholder="https://ejemplo.com/entrevista.mp3"
+                value={audioUrl}
+                onChange={(e) => {
+                  setAudioUrl(e.target.value);
+                  // Auto fill title from URL if possible
+                  try {
+                    const parsed = new URL(e.target.value);
+                    const pathname = parsed.pathname;
+                    const lastPart = pathname.substring(pathname.lastIndexOf('/') + 1);
+                    if (lastPart && lastPart.includes('.') && !title) {
+                      setTitle(lastPart.replace(/\.[^/.]+$/, ""));
+                    }
+                  } catch (err) {}
+                }}
+                className="w-full bg-slate-50 border border-slate-200 rounded-lg px-4 py-3 text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-teal-500/20 focus:border-teal-600 transition-all font-sans"
+              />
+            </div>
+
+            <div className="flex items-start gap-2.5 p-3 rounded-lg bg-slate-50 border border-slate-100/80 text-xs text-slate-500">
+              <AlertCircle className="w-4 h-4 text-slate-400 mt-0.5 flex-shrink-0" />
+              <p>
+                La plataforma descargará el archivo de audio directamente desde el servidor y usará el modelo Gemini para transcribir y analizar el material de manera íntegra y confidencial.
+              </p>
+            </div>
+          </div>
+        )}
+
         {/* Tab Panel: Text Area */}
         {activeTab === "text" && (
           <div className="space-y-2">
@@ -254,9 +332,17 @@ export default function AudioTextForm({ onAnalyze, isLoading }: AudioTextFormPro
         <button
           id="btn-submit-analyze"
           type="submit"
-          disabled={isLoading || (activeTab === "audio" && !audioFile) || (activeTab === "text" && !textInput.trim())}
+          disabled={
+            isLoading || 
+            (activeTab === "audio" && !audioFile) || 
+            (activeTab === "url" && !audioUrl.trim()) ||
+            (activeTab === "text" && !textInput.trim())
+          }
           className={`w-full py-3.5 px-6 rounded-lg font-medium text-sm tracking-tight flex items-center justify-center gap-2 shadow-sm transition-all ${
-            isLoading || (activeTab === "audio" && !audioFile) || (activeTab === "text" && !textInput.trim())
+            isLoading || 
+            (activeTab === "audio" && !audioFile) || 
+            (activeTab === "url" && !audioUrl.trim()) ||
+            (activeTab === "text" && !textInput.trim())
               ? "bg-slate-200 text-slate-400 cursor-not-allowed"
               : "bg-teal-700 text-white hover:bg-teal-800 active:scale-[0.98] cursor-pointer"
           }`}
