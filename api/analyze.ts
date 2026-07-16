@@ -1,0 +1,435 @@
+/**
+ * Vercel Serverless Function for Journalistic Analysis
+ */
+
+import { GoogleGenAI, Type } from "@google/genai";
+
+// Unified Analysis JSON Schema to pass to Gemini
+const analysisSchema = {
+  type: Type.OBJECT,
+  properties: {
+    transcription: {
+      type: Type.STRING,
+      description: "La transcripción completa literal y textual del audio provisto. Si sólo se proveyó texto, mantener el texto original completo aquí.",
+    },
+    summary: {
+      type: Type.STRING,
+      description: "Un resumen periodístico profundo, analítico y plenamente objetivo del contexto y de lo expresado en la entrevista.",
+    },
+    keyPoints: {
+      type: Type.ARRAY,
+      items: { type: Type.STRING },
+      description: "Puntos clave y reflexiones políticas nucleares identificadas en el contenido.",
+    },
+    relevantQuotes: {
+      type: Type.ARRAY,
+      items: {
+        type: Type.OBJECT,
+        properties: {
+          quote: { type: Type.STRING, description: "Cita textual exacta de la declaración." },
+          context: { type: Type.STRING, description: "Quién lo dijo y el contexto de la frase." }
+        },
+        required: ["quote", "context"]
+      },
+      description: "Las citas más destacadas del contenido general.",
+    },
+    politicalAnalysis: {
+      type: Type.OBJECT,
+      properties: {
+        axel_kicillof: {
+          type: Type.OBJECT,
+          properties: {
+            mentions: { type: Type.STRING, description: "Análisis y resumen general sobre lo mencionado de Axel Kicillof." },
+            positives: {
+              type: Type.ARRAY,
+              items: {
+                type: Type.OBJECT,
+                properties: {
+                  quote: { type: Type.STRING, description: "Cita textual exacta donde se expresa un comentario positivo, de apoyo, constructivo o de elogio." },
+                  analysis: { type: Type.STRING, description: "Análisis periodístico objetivo y sin sesgos de este comentario." }
+                },
+                required: ["quote", "analysis"]
+              }
+            },
+            negatives: {
+              type: Type.ARRAY,
+              items: {
+                type: Type.OBJECT,
+                properties: {
+                  quote: { type: Type.STRING, description: "Cita textual exacta donde se expresa un comentario o alusión negativa, de crítica, de fricción o disconforme." },
+                  analysis: { type: Type.STRING, description: "Análisis periodístico objetivo y sin sesgos de este comentario." }
+                },
+                required: ["quote", "analysis"]
+              }
+            }
+          },
+          required: ["mentions", "positives", "negatives"]
+        },
+        peronismo: {
+          type: Type.OBJECT,
+          properties: {
+            mentions: { type: Type.STRING, description: "Análisis y resumen general sobre lo mencionado del Peronismo en general." },
+            positives: {
+              type: Type.ARRAY,
+              items: {
+                type: Type.OBJECT,
+                properties: {
+                  quote: { type: Type.STRING, description: "Cita textual exacta donde se expresa un comentario positivo, de apoyo o de elogio respecto al peronismo." },
+                  analysis: { type: Type.STRING, description: "Análisis periodístico objetivo y sin sesgos de este comentario." }
+                },
+                required: ["quote", "analysis"]
+              }
+            },
+            negatives: {
+              type: Type.ARRAY,
+              items: {
+                type: Type.OBJECT,
+                properties: {
+                  quote: { type: Type.STRING, description: "Cita textual exacta donde se expresa una crítica o alusión negativa hacia el peronismo o su vigencia actual." },
+                  analysis: { type: Type.STRING, description: "Análisis periodístico objetivo y sin sesgos de este comentario." }
+                },
+                required: ["quote", "analysis"]
+              }
+            }
+          },
+          required: ["mentions", "positives", "negatives"]
+        },
+        cristina_kirchner: {
+          type: Type.OBJECT,
+          properties: {
+            mentions: { type: Type.STRING, description: "Análisis y resumen general sobre lo mencionado de Cristina Fernández de Kirchner." },
+            positives: {
+              type: Type.ARRAY,
+              items: {
+                type: Type.OBJECT,
+                properties: {
+                  quote: { type: Type.STRING, description: "Cita textual exacta donde se expresa un comentario positivo, de apoyo o elogio hacia Cristina Kirchner." },
+                  analysis: { type: Type.STRING, description: "Análisis periodístico objetivo y sin sesgos de este comentario." }
+                },
+                required: ["quote", "analysis"]
+              }
+            },
+            negatives: {
+              type: Type.ARRAY,
+              items: {
+                type: Type.OBJECT,
+                properties: {
+                  quote: { type: Type.STRING, description: "Cita textual exacta de crítica, tensión, desaprobación o cuestionamiento hacia Cristina Kirchner." },
+                  analysis: { type: Type.STRING, description: "Análisis periodístico objetivo y sin sesgos de este comentario." }
+                },
+                required: ["quote", "analysis"]
+              }
+            }
+          },
+          required: ["mentions", "positives", "negatives"]
+        },
+        la_campora: {
+          type: Type.OBJECT,
+          properties: {
+            mentions: { type: Type.STRING, description: "Análisis y resumen general sobre lo mencionado de La Cámpora." },
+            positives: {
+              type: Type.ARRAY,
+              items: {
+                type: Type.OBJECT,
+                properties: {
+                  quote: { type: Type.STRING, description: "Cita textual exacta donde se expresa un comentario positivo o de cercanía con La Cámpora." },
+                  analysis: { type: Type.STRING, description: "Análisis periodístico objetivo y sin sesgos de este comentario." }
+                },
+                required: ["quote", "analysis"]
+              }
+            },
+            negatives: {
+              type: Type.ARRAY,
+              items: {
+                type: Type.OBJECT,
+                properties: {
+                  quote: { type: Type.STRING, description: "Cita de desaprobación, crítica, discrepancia o comentario de tensión/negativo hacia La Cámpora." },
+                  analysis: { type: Type.STRING, description: "Análisis periodístico objetivo y sin sesgos de este comentario." }
+                },
+                required: ["quote", "analysis"]
+              }
+            }
+          },
+          required: ["mentions", "positives", "negatives"]
+        },
+        maximo_kirchner: {
+          type: Type.OBJECT,
+          properties: {
+            mentions: { type: Type.STRING, description: "Análisis y resumen general sobre lo mencionado de Máximo Kirchner." },
+            positives: {
+              type: Type.ARRAY,
+              items: {
+                type: Type.OBJECT,
+                properties: {
+                  quote: { type: Type.STRING, description: "Cita textual de valoración positiva, alineamiento o elogio hacia Máximo Kirchner." },
+                  analysis: { type: Type.STRING, description: "Análisis periodístico objetivo y sin sesgos de este comentario." }
+                },
+                required: ["quote", "analysis"]
+              }
+            },
+            negatives: {
+              type: Type.ARRAY,
+              items: {
+                type: Type.OBJECT,
+                properties: {
+                  quote: { type: Type.STRING, description: "Cita textual de valoración negativa, crítica, reproche o desacuerdo abierto con Máximo Kirchner o su liderazgo." },
+                  analysis: { type: Type.STRING, description: "Análisis periodístico objetivo y sin sesgos de este comentario." }
+                },
+                required: ["quote", "analysis"]
+              }
+            }
+          },
+          required: ["mentions", "positives", "negatives"]
+        }
+      },
+      required: ["axel_kicillof", "peronismo", "cristina_kirchner", "la_campora", "maximo_kirchner"]
+    },
+    economicAnalysis: {
+      type: Type.OBJECT,
+      properties: {
+        pbaEconomy: {
+          type: Type.OBJECT,
+          properties: {
+            summary: { type: Type.STRING, description: "Síntesis y diagnóstico periodístico riguroso sobre temas, políticas, presupuestos, impuestos u obras de la economía de la Provincia de Buenos Aires (PBA)." },
+            quotes: {
+              type: Type.ARRAY,
+              items: {
+                type: Type.OBJECT,
+                properties: {
+                  quote: { type: Type.STRING, description: "Cita literal e íntegra del entrevistado abordando la economía bonaerense." },
+                  analysis: { type: Type.STRING, description: "Análisis técnico y periodísticamente neutral del impacto de dicha afirmación o reclamo económico provincial." }
+                },
+                required: ["quote", "analysis"]
+              }
+            }
+          },
+          required: ["summary", "quotes"]
+        },
+        nationalEconomy: {
+          type: Type.OBJECT,
+          properties: {
+            summary: { type: Type.STRING, description: "Síntesis y diagnóstico macroeconómico a nivel de la República Argentina (inflación, FMI, tipo de cambio, medidas nacionales o rumbo productivo argentino)." },
+            quotes: {
+              type: Type.ARRAY,
+              items: {
+                type: Type.OBJECT,
+                properties: {
+                  quote: { type: Type.STRING, description: "Cita literal e íntegra del entrevistado abordando temas económicos de la Nación." },
+                  analysis: { type: Type.STRING, description: "Análisis neutral y profundo de la declaración económica nacional." }
+                },
+                required: ["quote", "analysis"]
+              }
+            }
+          },
+          required: ["summary", "quotes"]
+        }
+      },
+      required: ["pbaEconomy", "nationalEconomy"]
+    }
+  },
+  required: ["transcription", "summary", "keyPoints", "relevantQuotes", "politicalAnalysis", "economicAnalysis"]
+};
+
+const systemInstruction = `Eres un periodista político y económico senior de investigación de Argentina, con amplia trayectoria y obsesión por la objetividad absoluta y el rigor documental.
+Tu tarea es analizar el audio provisto (o el texto de la entrevista provisto) para realizar una transcripción literal impecable (si se provee un audio), un resumen periodístico, identificar los puntos clave, y extraer citas de trascendencia política y económica.
+
+Deberás auditar minuciosamente el contenido para identificar menciones, comentarios, posicionamientos, elogios y críticas relacionadas con los siguientes 5 actores políticos clave:
+1. El gobernador Axel Kicillof.
+2. El Peronismo (movimiento, partido político o doctrina).
+3. La ex presidenta Cristina Fernández de Kirchner (o CFK).
+4. La agrupación política La Cámpora.
+5. Su líder Máximo Kirchner.
+
+Para cada uno de estos 5 actores, debes agrupar los comentarios en positivos y negativos incluyendo las frases textuales literales exactas.
+
+Además, debes aislar de manera específica las declaraciones y debates sobre cuestiones económicas, estructuradas de forma independiente para:
+A) La economía de la Provincia de Buenos Aires (PBA) (ej. presupuestos bonaerenses, coparticipación, recaudación provincial, obras o recursos provinciales).
+B) La economía a nivel nacional / Argentina (ej. inflación, tipo de cambio, ajuste, FMI, políticas macroeconómicas o producción general argentina).
+
+*REGLA CRÍTICA DE OBLIGATORIEDAD*:
+Debes extraer las citas textuales EXACTAS (tal cual se dicen en el audio/texto) en el campo "quote" para evitar malinterpretaciones. No parafrasear ni omitir términos importantes de la cita.
+Si de un actor político o dimensión económica NO hay menciones o afirmaciones, escribe síntesis neutrales indicando 'No se registran declaraciones en este bloque para este análisis' y deja los arreglos de citas vacíos.
+El análisis que realices para cada cita en el campo "analysis" debe ser completamente objetivo, analítico y neutral.
+Entrega la respuesta estructurada estrictamente en formato JSON de acuerdo con el esquema provisto. TODO el contenido generado por ti debe estar escrito en idioma español de Argentina/latinoamericano.`;
+
+// Lazy initialize client helper
+let aiClient: GoogleGenAI | null = null;
+function getGeminiClient(): GoogleGenAI {
+  if (!aiClient) {
+    const apiKey = process.env.GEMINI_API_KEY;
+    if (!apiKey) {
+      throw new Error("GEMINI_API_KEY no se encuentra configurada en el servidor de Vercel. Por favor, añádala en la configuración del proyecto (Environment Variables).");
+    }
+    aiClient = new GoogleGenAI({
+      apiKey,
+      httpOptions: {
+        headers: {
+          "User-Agent": "aistudio-build-vercel",
+        },
+      },
+    });
+  }
+  return aiClient;
+}
+
+export default async function handler(req: any, res: any) {
+  // Handle CORS & Method check
+  if (req.method === "OPTIONS") {
+    res.setHeader("Access-Control-Allow-Origin", "*");
+    res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
+    res.setHeader("Access-Control-Allow-Headers", "Content-Type");
+    return res.status(200).end();
+  }
+
+  if (req.method !== "POST") {
+    res.setHeader("Allow", ["POST"]);
+    return res.status(405).json({ error: `Método ${req.method} no permitido.` });
+  }
+
+  try {
+    const { type, content, fileBase64, mimeType, filename } = req.body;
+
+    if (!type || (type === "text" && !content) || (type === "audio" && !fileBase64) || (type === "audio_url" && !content)) {
+      return res.status(400).json({ error: "Faltan parámetros requeridos: tipo o contenido inválidos." });
+    }
+
+    const client = getGeminiClient();
+    let contentsInput: any[] = [];
+    let resolvedBase64 = fileBase64;
+    let resolvedMime = mimeType || "audio/mp3";
+    let isAudioType = type === "audio";
+
+    // Auto-detect if input is a URL (either from 'audio_url' or a URL pasted in 'text')
+    let isUrl = type === "audio_url";
+    let urlToFetch = "";
+    if (type === "text" && content) {
+      const trimmed = content.trim();
+      if (/^https?:\/\/[^\s]+$/i.test(trimmed)) {
+        isUrl = true;
+        urlToFetch = trimmed;
+      }
+    } else if (type === "audio_url" && content) {
+      urlToFetch = content.trim();
+    }
+
+    if (isUrl) {
+      console.log(`URL detected: ${urlToFetch}. Attempting server-side fetch...`);
+      try {
+        const fetchResponse = await fetch(urlToFetch, {
+          headers: {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+          },
+        });
+
+        if (!fetchResponse.ok) {
+          console.error(`Fetch failed for URL ${urlToFetch} with status ${fetchResponse.status}`);
+          return res.status(fetchResponse.status === 404 ? 404 : 400).json({
+            error: fetchResponse.status === 404
+              ? `La URL del audio provista no existe (Error 404). Por favor, verifique que la dirección del audio sea correcta y pública.`
+              : `Error al descargar el archivo desde la URL (Código HTTP ${fetchResponse.status}: ${fetchResponse.statusText}). Asegúrese de que el enlace sea accesible.`
+          });
+        }
+
+        const arrayBuffer = await fetchResponse.arrayBuffer();
+        const buffer = Buffer.from(arrayBuffer);
+        resolvedBase64 = buffer.toString("base64");
+        isAudioType = true;
+
+        const contentType = fetchResponse.headers.get("content-type") || "";
+        console.log(`Successfully fetched URL. Content-Type: ${contentType}, Size: ${buffer.length} bytes`);
+
+        if (contentType && contentType.includes("audio")) {
+          resolvedMime = contentType;
+        } else {
+          const urlLower = urlToFetch.toLowerCase();
+          if (urlLower.endsWith(".mp3")) resolvedMime = "audio/mp3";
+          else if (urlLower.endsWith(".wav")) resolvedMime = "audio/wav";
+          else if (urlLower.endsWith(".m4a")) resolvedMime = "audio/m4a";
+          else if (urlLower.endsWith(".ogg")) resolvedMime = "audio/ogg";
+          else if (urlLower.endsWith(".aac")) resolvedMime = "audio/aac";
+          else if (urlLower.endsWith(".flac")) resolvedMime = "audio/flac";
+          else resolvedMime = "audio/mp3";
+        }
+      } catch (fetchErr: any) {
+        console.error(`Failed fetching audio URL ${urlToFetch}:`, fetchErr);
+        return res.status(400).json({
+          error: `No se pudo conectar o descargar el archivo desde la URL de audio especificada. Detalles: ${fetchErr.message || fetchErr}`
+        });
+      }
+    }
+
+    if (isAudioType && resolvedBase64) {
+      // Normalize common variations of mp3/mpeg MIME types for ultimate Gemini compatibility
+      if (
+        resolvedMime.includes("mp3") ||
+        resolvedMime.includes("mpeg") ||
+        resolvedMime.includes("mpg") ||
+        resolvedMime.includes("octet-stream")
+      ) {
+        resolvedMime = "audio/mp3";
+      }
+
+      const audioPart = {
+        inlineData: {
+          mimeType: resolvedMime,
+          data: resolvedBase64,
+        },
+      };
+      contentsInput = [
+        audioPart,
+        "Analiza este audio periodístico transcribiendo el material y descomponiendo rigurosamente los posicionamientos sobre Kicillof, Peronismo, Cristina Fernández de Kirchner, La Cámpora y Máximo Kirchner como dictan tus instrucciones."
+      ];
+    } else {
+      contentsInput = [
+        `Analiza este texto periodístico adjunto:\n\n${content}\n\nDescompón rigurosamente los posicionamientos sobre Kicillof, Peronismo, Cristina Fernández de Kirchner, La Cámpora y Máximo Kirchner como dictan tus instrucciones.`
+      ];
+    }
+
+    console.log(`Starting analysis for type: ${type} (Resolved as Audio: ${isAudioType}). Sending requests to Gemini...`);
+
+    let response = null;
+    let lastError = null;
+    const modelsToTry = ["gemini-2.5-flash", "gemini-3.5-flash"];
+
+    for (const modelName of modelsToTry) {
+      try {
+        console.log(`Attempting analysis with model: ${modelName}`);
+        response = await client.models.generateContent({
+          model: modelName,
+          contents: contentsInput,
+          config: {
+            systemInstruction,
+            responseMimeType: "application/json",
+            responseSchema: analysisSchema,
+            temperature: 0.1,
+          },
+        });
+        console.log(`Analysis successfully completed with model: ${modelName}`);
+        break;
+      } catch (err: any) {
+        console.warn(`Model ${modelName} failed or was unavailable:`, err.message || err);
+        lastError = err;
+      }
+    }
+
+    if (!response) {
+      throw new Error(
+        `Todos los modelos de análisis de IA están experimentando alta demanda en este momento. Por favor, reintente en unos instantes. (Detalle: ${lastError?.message || lastError})`
+      );
+    }
+
+    const responseText = response.text;
+    if (!responseText) {
+      throw new Error("El modelo Gemini no devolvió texto de respuesta.");
+    }
+
+    const parsedResult = JSON.parse(responseText);
+    return res.status(200).json(parsedResult);
+
+  } catch (error: any) {
+    console.error("Analysis Error:", error);
+    return res.status(500).json({
+      error: error.message || "Error desconocido al procesar el análisis con el modelo de IA.",
+    });
+  }
+}
