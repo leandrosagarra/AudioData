@@ -25,6 +25,7 @@ export default function AudioTextForm({ onAnalyze, isLoading }: AudioTextFormPro
   const [audioUrl, setAudioUrl] = useState("");
   const [audioFile, setAudioFile] = useState<File | null>(null);
   const [dragActive, setDragActive] = useState(false);
+  const [fileError, setFileError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleDrag = (e: React.DragEvent) => {
@@ -47,10 +48,17 @@ export default function AudioTextForm({ onAnalyze, isLoading }: AudioTextFormPro
       const isAudio = file.type.startsWith("audio/") || 
                       /\.(mp3|wav|m4a|ogg|wma|flac|aac|webm|mp4)$/i.test(file.name);
       if (isAudio) {
+        if (file.size > 3 * 1024 * 1024) {
+          setFileError(`¡Hola! Notamos que este audio pesa ${(file.size / (1024 * 1024)).toFixed(1)} MB. Para garantizar un procesamiento óptimo y rápido en servidores web sin cortes por límite de carga (Error 413), el tamaño máximo para subidas directas es de 3 MB. ¡No te preocupes! Podés subir este mismo archivo a Google Drive, Dropbox, OneDrive o cualquier servidor público, pegar el enlace en la pestaña "Audio por URL" arriba, y lo analizaremos de inmediato sin límites de tamaño.`);
+        } else {
+          setFileError(null);
+        }
         setAudioFile(file);
         if (!title) {
           setTitle(file.name.replace(/\.[^/.]+$/, "")); // Set original file name as default title
         }
+      } else {
+        setFileError("El archivo seleccionado no es un formato de audio compatible.");
       }
     }
   };
@@ -58,9 +66,20 @@ export default function AudioTextForm({ onAnalyze, isLoading }: AudioTextFormPro
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
       const file = e.target.files[0];
-      setAudioFile(file);
-      if (!title) {
-        setTitle(file.name.replace(/\.[^/.]+$/, ""));
+      const isAudio = file.type.startsWith("audio/") || 
+                      /\.(mp3|wav|m4a|ogg|wma|flac|aac|webm|mp4)$/i.test(file.name);
+      if (isAudio) {
+        if (file.size > 3 * 1024 * 1024) {
+          setFileError(`¡Hola! Notamos que este audio pesa ${(file.size / (1024 * 1024)).toFixed(1)} MB. Para garantizar un procesamiento óptimo y rápido en servidores web sin cortes por límite de carga (Error 413), el tamaño máximo para subidas directas es de 3 MB. ¡No te preocupes! Podés subir este mismo archivo a Google Drive, Dropbox, OneDrive o cualquier servidor público, pegar el enlace en la pestaña "Audio por URL" arriba, y lo analizaremos de inmediato sin límites de tamaño.`);
+        } else {
+          setFileError(null);
+        }
+        setAudioFile(file);
+        if (!title) {
+          setTitle(file.name.replace(/\.[^/.]+$/, ""));
+        }
+      } else {
+        setFileError("El archivo seleccionado no es un formato de audio compatible.");
       }
     }
   };
@@ -145,6 +164,7 @@ export default function AudioTextForm({ onAnalyze, isLoading }: AudioTextFormPro
             setActiveTab("audio");
             setAudioFile(null);
             setAudioUrl("");
+            setFileError(null);
           }}
           className={`flex-1 py-3 px-4 text-xs font-semibold uppercase tracking-wider border-b-2 flex items-center justify-center gap-1.5 transition-all ${
             activeTab === "audio"
@@ -162,6 +182,7 @@ export default function AudioTextForm({ onAnalyze, isLoading }: AudioTextFormPro
             setActiveTab("url");
             setAudioFile(null);
             setTextInput("");
+            setFileError(null);
           }}
           className={`flex-1 py-3 px-4 text-xs font-semibold uppercase tracking-wider border-b-2 flex items-center justify-center gap-1.5 transition-all ${
             activeTab === "url"
@@ -179,6 +200,7 @@ export default function AudioTextForm({ onAnalyze, isLoading }: AudioTextFormPro
             setActiveTab("text");
             setTextInput("");
             setAudioUrl("");
+            setFileError(null);
           }}
           className={`flex-1 py-3 px-4 text-xs font-semibold uppercase tracking-wider border-b-2 flex items-center justify-center gap-1.5 transition-all ${
             activeTab === "text"
@@ -263,6 +285,13 @@ export default function AudioTextForm({ onAnalyze, isLoading }: AudioTextFormPro
               )}
             </div>
 
+            {fileError && (
+              <div className="flex items-start gap-2.5 p-3.5 rounded-lg bg-red-50 border border-red-100 text-xs text-red-800 font-medium">
+                <AlertCircle className="w-4 h-4 text-red-600 mt-0.5 flex-shrink-0" />
+                <p>{fileError}</p>
+              </div>
+            )}
+
             <div className="flex items-start gap-2.5 p-3 rounded-lg bg-slate-50 border border-slate-100/80 text-xs text-slate-500">
               <AlertCircle className="w-4 h-4 text-slate-400 mt-0.5 flex-shrink-0" />
               <p>
@@ -334,13 +363,13 @@ export default function AudioTextForm({ onAnalyze, isLoading }: AudioTextFormPro
           type="submit"
           disabled={
             isLoading || 
-            (activeTab === "audio" && !audioFile) || 
+            (activeTab === "audio" && (!audioFile || !!fileError)) || 
             (activeTab === "url" && !audioUrl.trim()) ||
             (activeTab === "text" && !textInput.trim())
           }
           className={`w-full py-3.5 px-6 rounded-lg font-medium text-sm tracking-tight flex items-center justify-center gap-2 shadow-sm transition-all ${
             isLoading || 
-            (activeTab === "audio" && !audioFile) || 
+            (activeTab === "audio" && (!audioFile || !!fileError)) || 
             (activeTab === "url" && !audioUrl.trim()) ||
             (activeTab === "text" && !textInput.trim())
               ? "bg-slate-200 text-slate-400 cursor-not-allowed"
